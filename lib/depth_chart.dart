@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:k_chart_plus/chart_translations.dart';
-import 'package:k_chart_plus/k_chart_plus.dart';
+import 'package:bydoxe_chart/chart_translations.dart';
+import 'package:bydoxe_chart/k_chart_plus.dart';
 
 class DepthChart extends StatefulWidget {
   final List<DepthEntity> bids, asks;
@@ -285,8 +285,8 @@ class DepthChartPainter extends CustomPainter {
     endTP.paint(
         canvas, Offset(mWidth - endTP.width, getBottomTextY(endTP.height)));
 
-    var leftHalfText = ((mBuyData!.first.price + centerPrice) / 2)
-        .toStringAsFixed(quoteUnit!);
+    var leftHalfText =
+        ((mBuyData!.first.price + centerPrice) / 2).toStringAsFixed(quoteUnit!);
     TextPainter leftHalfTP = getTextPainter(leftHalfText);
     leftHalfTP.layout();
     leftHalfTP.paint(
@@ -294,8 +294,8 @@ class DepthChartPainter extends CustomPainter {
         Offset((mDrawWidth - leftHalfTP.width) / 2,
             getBottomTextY(leftHalfTP.height)));
 
-    var rightHalfText = ((mSellData!.last.price + centerPrice) / 2)
-        .toStringAsFixed(quoteUnit!);
+    var rightHalfText =
+        ((mSellData!.last.price + centerPrice) / 2).toStringAsFixed(quoteUnit!);
     TextPainter rightHalfTP = getTextPainter(rightHalfText);
     rightHalfTP.layout();
     rightHalfTP.paint(
