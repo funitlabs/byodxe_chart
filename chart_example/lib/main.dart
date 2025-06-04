@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:bydoxe_chart/k_chart_plus.dart';
+import 'package:bydoxe_chart/chart_indicator.dart';
+import 'package:bydoxe_chart/chart_style.dart';
 
 void main() => runApp(const MyApp());
 
@@ -33,16 +35,55 @@ class _MyHomePageState extends State<MyHomePage> {
   bool showLoading = true;
   bool _volHidden = false;
   MainState _mainState = MainState.MA;
-  // final Set<SecondaryState> _secondaryStateLi = <SecondaryState>{};
   final List<SecondaryState> _secondaryStateLi = [];
   List<DepthEntity>? _bids, _asks;
 
   ChartStyle chartStyle = ChartStyle();
   ChartColors chartColors = ChartColors();
 
+  // MA, BOLL, EMA 인디케이터 설정을 필드로 선언
+  late MAIndicatorSettings maSettings;
+  late BOLLIndicatorConfig bollSettings;
+  late EMAIndicatorSettings emaSettings;
+  late SARIndicatorConfig sarSettings;
+  late AVLIndicatorConfig avlSettings;
+
   @override
   void initState() {
     super.initState();
+    // MA 인디케이터 설정: 5(color1), 15(color2), 20(color3)
+    maSettings = MAIndicatorSettings([
+      MAIndicatorConfig(day: 5, color: IndicatorColors.defaultPalette.color1),
+      MAIndicatorConfig(day: 15, color: IndicatorColors.defaultPalette.color2),
+      MAIndicatorConfig(day: 20, color: IndicatorColors.defaultPalette.color3),
+    ]);
+    // BOLL 인디케이터 설정: 기간 20, 계수 2, UP/MB/DN 모두 true, 색상은 color1/2/3
+    bollSettings = BOLLIndicatorConfig(
+      day: 20,
+      k: 2.0,
+      showUp: true,
+      showMb: true,
+      showDn: true,
+      upColor: IndicatorColors.defaultPalette.color1,
+      mbColor: IndicatorColors.defaultPalette.color2,
+      dnColor: IndicatorColors.defaultPalette.color3,
+    );
+    // EMA 인디케이터 설정: 7(color1), 15(color2), 30(color3)
+    emaSettings = EMAIndicatorSettings([
+      EMAIndicatorConfig(day: 7, color: IndicatorColors.defaultPalette.color1),
+      EMAIndicatorConfig(day: 15, color: IndicatorColors.defaultPalette.color2),
+      EMAIndicatorConfig(day: 30, color: IndicatorColors.defaultPalette.color3),
+    ]);
+    // SAR 인디케이터 설정: start 0.02, maximum 0.2, color1
+    sarSettings = SARIndicatorConfig(
+      start: 0.02,
+      maximum: 0.2,
+      dotColor: IndicatorColors.defaultPalette.color1,
+    );
+    // AVL 인디케이터 설정: color2
+    avlSettings = AVLIndicatorConfig(
+      color: IndicatorColors.defaultPalette.color2,
+    );
     getData('1day');
     rootBundle.loadString('assets/depth.json').then((result) {
       final parseJson = json.decode(result);
@@ -91,29 +132,32 @@ class _MyHomePageState extends State<MyHomePage> {
       body: ListView(
         shrinkWrap: true,
         children: <Widget>[
-          const SafeArea(bottom: false, child: SizedBox(height: 10)),
-          Stack(
-            children: <Widget>[
-              KChartWidget(
-                datas,
-                chartStyle,
-                chartColors,
-                mBaseHeight: 360,
-                isTrendLine: false,
-                mainState: _mainState,
-                volHidden: _volHidden,
-                secondaryStateLi: _secondaryStateLi.toSet(),
-                fixedLength: 2,
-                timeFormat: TimeFormat.YEAR_MONTH_DAY,
-              ),
-              if (showLoading)
-                Container(
-                  width: double.infinity,
-                  height: 450,
-                  alignment: Alignment.center,
-                  child: const CircularProgressIndicator(),
-                ),
-            ],
+          const SafeArea(bottom: false, child: SizedBox(height: 16)),
+          SizedBox(
+            height: 400,
+            child: KChartWidget(
+              datas,
+              chartStyle,
+              chartColors,
+              isTrendLine: false,
+              maSettings:
+                  _mainState == MainState.MA
+                      ? maSettings
+                      : MAIndicatorSettings([]),
+              bollSettings: _mainState == MainState.BOLL ? bollSettings : null,
+              emaSettings:
+                  _mainState == MainState.EMA
+                      ? emaSettings
+                      : EMAIndicatorSettings([]),
+              sarSettings: _mainState == MainState.SAR ? sarSettings : null,
+              avlSettings: _mainState == MainState.AVL ? avlSettings : null,
+              mainState: _mainState,
+              volHidden: _volHidden,
+              secondaryStateLi: _secondaryStateLi.toSet(),
+              fixedLength: 2,
+              timeFormat: TimeFormat.YEAR_MONTH_DAY,
+              verticalTextAlignment: VerticalTextAlignment.right,
+            ),
           ),
           _buildTitle(context, 'VOL'),
           buildVolButton(),
@@ -290,7 +334,16 @@ class _MyHomePageState extends State<MyHomePage> {
             .reversed
             .toList()
             .cast<KLineEntity>();
-    DataUtil.calculate(datas!);
+    // 데이터 계산 시 EMA도 함께 계산
+    DataUtil.calculate(
+      datas!,
+      maSettings.dayList,
+      bollSettings.day,
+      bollSettings.k,
+      emaSettings.dayList,
+      sarSettings.start,
+      sarSettings.maximum,
+    );
     showLoading = false;
     setState(() {});
   }

@@ -4,8 +4,9 @@ import 'package:bydoxe_chart/chart_translations.dart';
 import 'package:bydoxe_chart/components/popup_info_view.dart';
 import 'package:bydoxe_chart/k_chart_plus.dart';
 import 'renderer/base_dimension.dart';
+import 'chart_indicator.dart';
 
-enum MainState { MA, BOLL, NONE }
+enum MainState { MA, EMA, BOLL, SAR, AVL, NONE }
 
 // enum SecondaryState { MACD, KDJ, RSI, WR, CCI, NONE }
 enum SecondaryState { MACD, KDJ, RSI, WR, CCI } //no support NONE
@@ -48,7 +49,10 @@ class KChartWidget extends StatefulWidget {
   final Function(bool)? onLoadMore;
 
   final int fixedLength;
-  final List<int> maDayList;
+  final MAIndicatorSettings maSettings;
+  final BOLLIndicatorConfig? bollSettings;
+  final EMAIndicatorSettings emaSettings;
+  final SARIndicatorConfig? sarSettings;
   final int flingTime;
   final double flingRatio;
   final Curve flingCurve;
@@ -58,12 +62,18 @@ class KChartWidget extends StatefulWidget {
   final VerticalTextAlignment verticalTextAlignment;
   final bool isTrendLine;
   final double xFrontPadding;
+  final AVLIndicatorConfig? avlSettings;
 
   KChartWidget(
     this.datas,
     this.chartStyle,
     this.chartColors, {
     required this.isTrendLine,
+    required this.maSettings,
+    required this.emaSettings,
+    this.bollSettings,
+    this.sarSettings,
+    this.avlSettings,
     this.xFrontPadding = 100,
     this.mainState = MainState.MA,
     this.secondaryStateLi = const <SecondaryState>{},
@@ -79,7 +89,6 @@ class KChartWidget extends StatefulWidget {
     this.timeFormat = TimeFormat.YEAR_MONTH_DAY,
     this.onLoadMore,
     this.fixedLength = 2,
-    this.maDayList = const [5, 10, 20],
     this.flingTime = 600,
     this.flingRatio = 0.5,
     this.flingCurve = Curves.decelerate,
@@ -168,7 +177,11 @@ class _KChartWidgetState extends State<KChartWidget>
       hideGrid: widget.hideGrid,
       showNowPrice: widget.showNowPrice,
       fixedLength: widget.fixedLength,
-      maDayList: widget.maDayList,
+      maSettings: widget.maSettings,
+      emaSettings: widget.emaSettings,
+      bollSettings: widget.bollSettings,
+      sarSettings: widget.sarSettings,
+      avlSettings: widget.avlSettings,
       verticalTextAlignment: widget.verticalTextAlignment,
     );
 

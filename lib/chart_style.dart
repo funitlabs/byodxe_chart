@@ -193,3 +193,57 @@ class ChartStyle {
   ///customize the time below
   List<String>? dateTimeFormat;
 }
+
+/// 인디케이터 전용 색상 팔레트 (라이트/다크 모드 모두에서 잘 보임)
+class IndicatorColors {
+  final Color color1;
+  final Color color2;
+  final Color color3;
+  final Color color4;
+  final Color color5;
+  final Color color6;
+  final Color color7;
+  final Color color8;
+  final Color color9;
+  final Color color10;
+
+  const IndicatorColors({
+    required this.color1,
+    required this.color2,
+    required this.color3,
+    required this.color4,
+    required this.color5,
+    required this.color6,
+    required this.color7,
+    required this.color8,
+    required this.color9,
+    required this.color10,
+  });
+
+  /// 기본 팔레트 (라이트/다크 모두에서 잘 보이는 색상)
+  static const IndicatorColors defaultPalette = IndicatorColors(
+    color1: Color(0xFF1976D2), // 파랑
+    color2: Color(0xFFD32F2F), // 빨강
+    color3: Color(0xFF388E3C), // 초록
+    color4: Color(0xFFFBC02D), // 노랑
+    color5: Color(0xFF7B1FA2), // 보라
+    color6: Color(0xFF0288D1), // 청록
+    color7: Color(0xFFF57C00), // 오렌지
+    color8: Color(0xFF455A64), // 진회색
+    color9: Color(0xFF00897B), // 청록2
+    color10: Color(0xFF5D4037), // 브라운
+  );
+
+  List<Color> get all => [
+        color1,
+        color2,
+        color3,
+        color4,
+        color5,
+        color6,
+        color7,
+        color8,
+        color9,
+        color10
+      ];
+}

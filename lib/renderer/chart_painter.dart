@@ -10,6 +10,7 @@ import 'base_dimension.dart';
 import 'main_renderer.dart';
 import 'secondary_renderer.dart';
 import 'vol_renderer.dart';
+import '../chart_indicator.dart';
 
 class TrendLine {
   final Offset p1;
@@ -32,7 +33,7 @@ class ChartPainter extends BaseChartPainter {
   bool isrecordingCord = false; //For TrendLine
   final double selectY; //For TrendLine
   static get maxScrollX => BaseChartPainter.maxScrollX;
-  late BaseChartRenderer mMainRenderer;
+  BaseChartRenderer? mMainRenderer;
   BaseChartRenderer? mVolRenderer;
   Set<BaseChartRenderer> mSecondaryRendererList = {};
   StreamSink<InfoWindowEntity?> sink;
@@ -49,6 +50,11 @@ class ChartPainter extends BaseChartPainter {
   final bool showNowPrice;
   final VerticalTextAlignment verticalTextAlignment;
   final BaseDimension baseDimension;
+  final MAIndicatorSettings maSettings;
+  final EMAIndicatorSettings emaSettings;
+  final BOLLIndicatorConfig? bollSettings;
+  final SARIndicatorConfig? sarSettings;
+  final AVLIndicatorConfig? avlSettings;
 
   ChartPainter(
     this.chartStyle,
@@ -64,6 +70,11 @@ class ChartPainter extends BaseChartPainter {
     required selectX,
     required xFrontPadding,
     required this.baseDimension,
+    required this.maSettings,
+    required this.emaSettings,
+    this.bollSettings,
+    this.sarSettings,
+    this.avlSettings,
     isOnTap,
     isTapShowInfoDialog,
     required this.verticalTextAlignment,
@@ -105,11 +116,15 @@ class ChartPainter extends BaseChartPainter {
 
   @override
   void initChartRenderer() {
-    if (datas != null && datas!.isNotEmpty) {
-      var t = datas![0];
-      fixedLength =
-          NumberUtil.getMaxDecimalLength(t.open, t.close, t.high, t.low);
+    if (datas == null || datas!.isEmpty) {
+      mMainRenderer = null;
+      mVolRenderer = null;
+      mSecondaryRendererList = {};
+      return;
     }
+    var t = datas![0];
+    fixedLength =
+        NumberUtil.getMaxDecimalLength(t.open, t.close, t.high, t.low);
     mMainRenderer = MainRenderer(
       mMainRect,
       mMainMaxValue,
@@ -122,11 +137,17 @@ class ChartPainter extends BaseChartPainter {
       this.chartColors,
       this.scaleX,
       verticalTextAlignment,
-      maDayList,
+      maSettings: maSettings,
+      emaSettings: emaSettings,
+      bollSettings: bollSettings,
+      sarSettings: sarSettings,
+      avlSettings: avlSettings,
     );
     if (mVolRect != null) {
       mVolRenderer = VolRenderer(mVolRect!, mVolMaxValue, mVolMinValue,
           mChildPadding, fixedLength, this.chartStyle, this.chartColors);
+    } else {
+      mVolRenderer = null;
     }
     mSecondaryRendererList.clear();
     for (int i = 0; i < mSecondaryRectList.length; ++i) {
@@ -170,7 +191,7 @@ class ChartPainter extends BaseChartPainter {
   @override
   void drawGrid(canvas) {
     if (!hideGrid) {
-      mMainRenderer.drawGrid(canvas, mGridRows, mGridColumns);
+      mMainRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
       mVolRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
       mSecondaryRendererList.forEach((element) {
         element.drawGrid(canvas, mGridRows, mGridColumns);
@@ -180,6 +201,7 @@ class ChartPainter extends BaseChartPainter {
 
   @override
   void drawChart(Canvas canvas, Size size) {
+    if (mMainRenderer == null) return;
     canvas.save();
     canvas.translate(mTranslateX * scaleX, 0.0);
     canvas.scale(scaleX, 1.0);
@@ -190,7 +212,7 @@ class ChartPainter extends BaseChartPainter {
       double curX = getX(i);
       double lastX = i == 0 ? curX : getX(i - 1);
 
-      mMainRenderer.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
+      mMainRenderer?.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
       mVolRenderer?.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
       mSecondaryRendererList.forEach((element) {
         element.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
@@ -207,9 +229,10 @@ class ChartPainter extends BaseChartPainter {
 
   @override
   void drawVerticalText(canvas) {
+    if (mMainRenderer == null) return;
     var textStyle = getTextStyle(this.chartColors.defaultTextColor);
     if (!hideGrid) {
-      mMainRenderer.drawVerticalText(canvas, textStyle, mGridRows);
+      mMainRenderer?.drawVerticalText(canvas, textStyle, mGridRows);
     }
     mVolRenderer?.drawVerticalText(canvas, textStyle, mGridRows);
     mSecondaryRendererList.forEach((element) {
@@ -334,7 +357,7 @@ class ChartPainter extends BaseChartPainter {
       data = getItem(index);
     }
     //Release to display the last data
-    mMainRenderer.drawText(canvas, data, x);
+    mMainRenderer?.drawText(canvas, data, x);
     mVolRenderer?.drawText(canvas, data, x);
     mSecondaryRendererList.forEach((element) {
       element.drawText(canvas, data, x);
@@ -380,23 +403,19 @@ class ChartPainter extends BaseChartPainter {
     if (!this.showNowPrice) {
       return;
     }
-
-    if (datas == null) {
+    if (mMainRenderer == null) return;
+    if (datas == null || datas!.isEmpty) {
       return;
     }
-
     double value = datas!.last.close;
     double y = getMainY(value);
-
     //view display area boundary value drawing
     if (y > getMainY(mMainLowMinValue)) {
       y = getMainY(mMainLowMinValue);
     }
-
     if (y < getMainY(mMainHighMaxValue)) {
       y = getMainY(mMainHighMaxValue);
     }
-
     nowPricePaint
       ..color = value >= datas!.last.open
           ? this.chartColors.nowPriceUpColor
@@ -418,17 +437,15 @@ class ChartPainter extends BaseChartPainter {
       value.toStringAsFixed(fixedLength),
       this.chartColors.nowPriceTextColor,
     );
-
     double offsetX;
     switch (verticalTextAlignment) {
       case VerticalTextAlignment.left:
-        offsetX = mWidth - tp.width;
-        break;
-      case VerticalTextAlignment.right:
         offsetX = 0;
         break;
+      case VerticalTextAlignment.right:
+        offsetX = mWidth - tp.width;
+        break;
     }
-
     double top = y - tp.height / 2;
     canvas.drawRect(
         Rect.fromLTRB(offsetX, top, offsetX + tp.width, top + tp.height),
@@ -544,7 +561,7 @@ class ChartPainter extends BaseChartPainter {
         mFormats,
       );
 
-  double getMainY(double y) => mMainRenderer.getY(y);
+  double getMainY(double y) => mMainRenderer?.getY(y) ?? 0;
 
   /// Whether the point is in the SecondaryRect
   // bool isInSecondaryRect(Offset point) {

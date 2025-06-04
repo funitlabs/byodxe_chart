@@ -208,8 +208,7 @@ abstract class BaseChartPainter extends CustomPainter {
 
   /// calculate values
   calculateValue() {
-    if (datas == null) return;
-    if (datas!.isEmpty) return;
+    if (datas == null || datas!.isEmpty) return;
     maxScrollX = getMinTranslateX().abs();
     setTranslateXFromScrollX(scrollX);
     mStartIndex = indexOfTranslateX(xToTranslateX(0));
@@ -230,9 +229,18 @@ abstract class BaseChartPainter extends CustomPainter {
     if (mainState == MainState.MA) {
       maxPrice = max(item.high, _findMaxMA(item.maValueList ?? [0]));
       minPrice = min(item.low, _findMinMA(item.maValueList ?? [0]));
+    } else if (mainState == MainState.EMA) {
+      maxPrice = max(item.high, _findMaxMA(item.emaValueList ?? [0]));
+      minPrice = min(item.low, _findMinMA(item.emaValueList ?? [0]));
     } else if (mainState == MainState.BOLL) {
-      maxPrice = max(item.up ?? 0, item.high);
-      minPrice = min(item.dn ?? 0, item.low);
+      maxPrice = max(item.high, item.up ?? item.high);
+      minPrice = min(item.low, item.dn ?? item.low);
+    } else if (mainState == MainState.SAR) {
+      maxPrice = max(item.high, item.sar ?? item.high);
+      minPrice = min(item.low, item.sar ?? item.low);
+    } else if (mainState == MainState.AVL) {
+      maxPrice = max(item.high, item.avl ?? item.high);
+      minPrice = min(item.low, item.avl ?? item.low);
     } else {
       maxPrice = item.high;
       minPrice = item.low;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../entity/candle_entity.dart';
 import '../k_chart_widget.dart' show MainState;
 import 'base_chart_renderer.dart';
+import '../chart_indicator.dart';
 
 enum VerticalTextAlignment { left, right }
 
@@ -20,13 +21,17 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
   //绘制的内容区域
   late Rect _contentRect;
   double _contentPadding = 5.0;
-  List<int> maDayList;
+  final MAIndicatorSettings maSettings;
+  final EMAIndicatorSettings emaSettings;
+  final BOLLIndicatorConfig? bollSettings;
   final ChartStyle chartStyle;
   final ChartColors chartColors;
   final double mLineStrokeWidth = 1.0;
   double scaleX;
   late Paint mLinePaint;
   final VerticalTextAlignment verticalTextAlignment;
+  final SARIndicatorConfig? sarSettings;
+  final AVLIndicatorConfig? avlSettings;
 
   MainRenderer(
       Rect mainRect,
@@ -40,7 +45,11 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
       this.chartColors,
       this.scaleX,
       this.verticalTextAlignment,
-      [this.maDayList = const [5, 10, 20]])
+      {required this.maSettings,
+      required this.emaSettings,
+      this.bollSettings,
+      this.sarSettings,
+      this.avlSettings})
       : super(
             chartRect: mainRect,
             maxValue: maxValue,
@@ -75,23 +84,54 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
       span = TextSpan(
         children: _createMATextSpan(data),
       );
+    } else if (state == MainState.EMA) {
+      span = TextSpan(
+        children: _createEMATextSpan(data),
+      );
     } else if (state == MainState.BOLL) {
+      final boll = bollSettings;
       span = TextSpan(
         children: [
-          if (data.up != 0)
+          if (boll != null)
             TextSpan(
-                text: "BOLL:${format(data.mb)}    ",
-                style: getTextStyle(this.chartColors.ma5Color)),
-          if (data.mb != 0)
+              text: 'BOLL(${boll.day}, ${boll.k}) ',
+              style: getTextStyle(boll.upColor),
+            ),
+          if (boll != null && boll.showUp && data.up != 0)
             TextSpan(
-                text: "UB:${format(data.up)}    ",
-                style: getTextStyle(this.chartColors.ma10Color)),
-          if (data.dn != 0)
+                text: "UP:${format(data.up)} ",
+                style: getTextStyle(boll.upColor)),
+          if (boll != null && boll.showMb && data.mb != 0)
             TextSpan(
-                text: "LB:${format(data.dn)}    ",
-                style: getTextStyle(this.chartColors.ma30Color)),
+                text: "MB:${format(data.mb)} ",
+                style: getTextStyle(boll.mbColor)),
+          if (boll != null && boll.showDn && data.dn != 0)
+            TextSpan(
+                text: "DN:${format(data.dn)} ",
+                style: getTextStyle(boll.dnColor)),
         ],
       );
+    } else if (state == MainState.SAR) {
+      if (data.sar != null && sarSettings != null)
+        span = TextSpan(
+          text:
+              "SAR(${sarSettings!.start}, ${sarSettings!.maximum}): ${format(data.sar)} ",
+          style: getTextStyle(sarSettings!.dotColor),
+        );
+    } else if (state == MainState.AVL) {
+      if (data.avl == null) {
+        // ignore: avoid_print
+        print('[AVL] drawText: avl 값이 null');
+      }
+      if (avlSettings == null) {
+        // ignore: avoid_print
+        print('[AVL] drawText: avlSettings가 null');
+      }
+      if (data.avl != null && avlSettings != null)
+        span = TextSpan(
+          text: "AVL: ${format(data.avl)} ",
+          style: getTextStyle(avlSettings!.color),
+        );
     }
     if (span == null) return;
     TextPainter tp = TextPainter(text: span, textDirection: TextDirection.ltr);
@@ -104,9 +144,28 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
     for (int i = 0; i < (data.maValueList?.length ?? 0); i++) {
       if (data.maValueList?[i] != 0) {
         var item = TextSpan(
-            text: "MA${maDayList[i]}:${format(data.maValueList![i])}    ",
+            text:
+                "MA(${maSettings.dayList[i]}): ${format(data.maValueList![i])}    ",
             style: getTextStyle(this.chartColors.getMAColor(i)));
         result.add(item);
+      }
+    }
+    return result;
+  }
+
+  List<InlineSpan> _createEMATextSpan(CandleEntity data) {
+    List<InlineSpan> result = [];
+    if (data.emaValueList == null) return result;
+    for (int i = 0; i < data.emaValueList!.length; i++) {
+      final v = data.emaValueList![i];
+      if (v != 0) {
+        result.add(TextSpan(
+          text:
+              "EMA(${emaSettings.dayList.length > i ? emaSettings.dayList[i] : '?'}): ${format(v)}    ",
+          style: getTextStyle(emaSettings.emaList.length > i
+              ? emaSettings.emaList[i].color
+              : chartColors.kLineColor),
+        ));
       }
     }
     return result;
@@ -121,9 +180,27 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
       drawCandle(curPoint, canvas, curX);
       if (state == MainState.MA) {
         drawMaLine(lastPoint, curPoint, canvas, lastX, curX);
+      } else if (state == MainState.EMA) {
+        drawEmaLine(lastPoint, curPoint, canvas, lastX, curX);
       } else if (state == MainState.BOLL) {
         drawBollLine(lastPoint, curPoint, canvas, lastX, curX);
       }
+      if (state == MainState.AVL) {
+        drawAvlLine(lastPoint, curPoint, canvas, lastX, curX);
+      }
+    }
+    // SAR dot은 isLine 여부와 상관없이 항상 그린다
+    if (state == MainState.SAR &&
+        curPoint.sar != null &&
+        curPoint.sarUpTrend != null) {
+      final color = sarSettings?.dotColor ?? Colors.blue;
+      canvas.drawCircle(
+        Offset(curX, getY(curPoint.sar!)),
+        3.0,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill,
+      );
     }
   }
 
@@ -183,31 +260,79 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
 
   void drawMaLine(CandleEntity lastPoint, CandleEntity curPoint, Canvas canvas,
       double lastX, double curX) {
-    for (int i = 0; i < (curPoint.maValueList?.length ?? 0); i++) {
+    if (curPoint.maValueList == null || lastPoint.maValueList == null) return;
+    for (int i = 0; i < curPoint.maValueList!.length; i++) {
       if (i == 3) {
         break;
       }
-      if (lastPoint.maValueList?[i] != 0) {
-        drawLine(lastPoint.maValueList?[i], curPoint.maValueList?[i], canvas,
+      if (lastPoint.maValueList![i] != 0) {
+        drawLine(lastPoint.maValueList![i], curPoint.maValueList![i], canvas,
             lastX, curX, this.chartColors.getMAColor(i));
+      }
+    }
+  }
+
+  void drawEmaLine(CandleEntity lastPoint, CandleEntity curPoint, Canvas canvas,
+      double lastX, double curX) {
+    if (curPoint.emaValueList == null || lastPoint.emaValueList == null) return;
+    for (int i = 0; i < curPoint.emaValueList!.length; i++) {
+      final v1 = lastPoint.emaValueList![i];
+      final v2 = curPoint.emaValueList![i];
+      if (v1 != 0 && v2 != 0) {
+        drawLine(
+            v1,
+            v2,
+            canvas,
+            lastX,
+            curX,
+            emaSettings.emaList.length > i
+                ? emaSettings.emaList[i].color
+                : chartColors.kLineColor);
       }
     }
   }
 
   void drawBollLine(CandleEntity lastPoint, CandleEntity curPoint,
       Canvas canvas, double lastX, double curX) {
-    if (lastPoint.up != 0) {
-      drawLine(lastPoint.up, curPoint.up, canvas, lastX, curX,
-          this.chartColors.ma10Color);
+    final boll = bollSettings;
+    if (boll != null) {
+      if (boll.showUp &&
+          lastPoint.up != null &&
+          curPoint.up != null &&
+          lastPoint.up != 0 &&
+          curPoint.up != 0) {
+        drawLine(lastPoint.up, curPoint.up, canvas, lastX, curX, boll.upColor);
+      }
+      if (boll.showMb &&
+          lastPoint.mb != null &&
+          curPoint.mb != null &&
+          lastPoint.mb != 0 &&
+          curPoint.mb != 0) {
+        drawLine(lastPoint.mb, curPoint.mb, canvas, lastX, curX, boll.mbColor);
+      }
+      if (boll.showDn &&
+          lastPoint.dn != null &&
+          curPoint.dn != null &&
+          lastPoint.dn != 0 &&
+          curPoint.dn != 0) {
+        drawLine(lastPoint.dn, curPoint.dn, canvas, lastX, curX, boll.dnColor);
+      }
     }
-    if (lastPoint.mb != 0) {
-      drawLine(lastPoint.mb, curPoint.mb, canvas, lastX, curX,
-          this.chartColors.ma5Color);
+  }
+
+  void drawAvlLine(CandleEntity lastPoint, CandleEntity curPoint, Canvas canvas,
+      double lastX, double curX) {
+    if (lastPoint.avl == null || curPoint.avl == null) {
+      // ignore: avoid_print
+      print('[AVL] avl 값이 null: last=${lastPoint.avl}, cur=${curPoint.avl}');
+      return;
     }
-    if (lastPoint.dn != 0) {
-      drawLine(lastPoint.dn, curPoint.dn, canvas, lastX, curX,
-          this.chartColors.ma30Color);
+    final color = avlSettings?.color ?? Colors.orange;
+    if (avlSettings == null) {
+      // ignore: avoid_print
+      print('[AVL] avlSettings가 null');
     }
+    drawLine(lastPoint.avl, curPoint.avl, canvas, lastX, curX, color);
   }
 
   void drawCandle(CandleEntity curPoint, Canvas canvas, double curX) {
