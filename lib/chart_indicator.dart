@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'chart_style.dart';
 
 /// MA 인디케이터 개별 설정 (기간과 색상)
 class MAIndicatorConfig {
