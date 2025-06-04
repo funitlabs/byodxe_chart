@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:bydoxe_chart/k_chart_plus.dart';
 import 'package:bydoxe_chart/chart_indicator.dart';
-import 'package:bydoxe_chart/chart_style.dart';
 
 void main() => runApp(const MyApp());
 
