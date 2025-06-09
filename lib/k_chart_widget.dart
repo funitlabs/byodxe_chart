@@ -9,7 +9,7 @@ import 'chart_indicator.dart';
 enum MainState { MA, EMA, BOLL, SAR, AVL, NONE }
 
 // enum SecondaryState { MACD, KDJ, RSI, WR, CCI, NONE }
-enum SecondaryState { MACD, KDJ, RSI, WR, CCI } //no support NONE
+enum SecondaryState { VOL, MACD, KDJ, RSI, WR, CCI } //no support NONE
 
 class TimeFormat {
   static const List<String> YEAR_MONTH_DAY = [yyyy, '-', mm, '-', dd];
@@ -29,7 +29,6 @@ class TimeFormat {
 class KChartWidget extends StatefulWidget {
   final List<KLineEntity>? datas;
   final MainState mainState;
-  final bool volHidden;
   final Set<SecondaryState> secondaryStateLi;
   // final Function()? onSecondaryTap;
   final bool isLine;
@@ -78,7 +77,6 @@ class KChartWidget extends StatefulWidget {
     this.mainState = MainState.MA,
     this.secondaryStateLi = const <SecondaryState>{},
     // this.onSecondaryTap,
-    this.volHidden = false,
     this.isLine = false,
     this.isTapShowInfoDialog = false,
     this.hideGrid = false,
@@ -151,7 +149,6 @@ class _KChartWidgetState extends State<KChartWidget>
     }
     final BaseDimension baseDimension = BaseDimension(
       mBaseHeight: widget.mBaseHeight,
-      volHidden: widget.volHidden,
       secondaryStateLi: widget.secondaryStateLi,
     );
     final _painter = ChartPainter(
@@ -164,14 +161,11 @@ class _KChartWidgetState extends State<KChartWidget>
       isTrendLine: widget.isTrendLine, //For TrendLine
       selectY: mSelectY, //For TrendLine
       datas: widget.datas,
-      scaleX: mScaleX,
-      scrollX: mScrollX,
       selectX: mSelectX,
       isLongPass: isLongPress,
       isOnTap: isOnTap,
       isTapShowInfoDialog: widget.isTapShowInfoDialog,
       mainState: widget.mainState,
-      volHidden: widget.volHidden,
       secondaryStateLi: widget.secondaryStateLi,
       isLine: widget.isLine,
       hideGrid: widget.hideGrid,
@@ -183,6 +177,7 @@ class _KChartWidgetState extends State<KChartWidget>
       sarSettings: widget.sarSettings,
       avlSettings: widget.avlSettings,
       verticalTextAlignment: widget.verticalTextAlignment,
+      maDayList: [5, 10, 20],
     );
 
     return LayoutBuilder(

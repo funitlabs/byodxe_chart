@@ -411,9 +411,14 @@ class MainRenderer extends BaseChartRenderer<CandleEntity> {
 
   @override
   double getY(double y) {
-    //For TrendLine
-    updateTrendLineData();
-    return (maxValue - y) * scaleY + _contentRect.top;
+    if (y.isNaN || y.isInfinite) return chartRect.bottom;
+    if (maxValue == minValue) return chartRect.bottom;
+
+    // Y축 하단을 벗어나지 않도록 제한
+    double yValue =
+        (maxValue - y) * (chartRect.height / (maxValue - minValue)) +
+            chartRect.top;
+    return yValue.clamp(chartRect.top, chartRect.bottom);
   }
 
   void updateTrendLineData() {

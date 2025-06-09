@@ -1,16 +1,25 @@
 import 'dart:math';
 
+enum NumberFormat {
+  normal,
+  character,
+}
+
 class NumberUtil {
-  static String format(double n) {
-    if (n >= 1000000000) {
-      n /= 1000000000;
-      return "${n.toStringAsFixed(2)}B";
-    } else if (n >= 1000000) {
-      n /= 1000000;
-      return "${n.toStringAsFixed(2)}M";
-    } else if (n >= 10000) {
-      n /= 1000;
-      return "${n.toStringAsFixed(2)}K";
+  static String format(double n, {NumberFormat format = NumberFormat.normal}) {
+    if (format == NumberFormat.character) {
+      if (n >= 1000000000) {
+        n /= 1000000000;
+        return "${n.toStringAsFixed(2)}B";
+      } else if (n >= 1000000) {
+        n /= 1000000;
+        return "${n.toStringAsFixed(2)}M";
+      } else if (n >= 10000) {
+        n /= 1000;
+        return "${n.toStringAsFixed(2)}K";
+      } else {
+        return n.toStringAsFixed(4);
+      }
     } else {
       return n.toStringAsFixed(4);
     }

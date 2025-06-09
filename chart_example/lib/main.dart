@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:bydoxe_chart/k_chart_plus.dart';
 import 'package:bydoxe_chart/chart_indicator.dart';
+import 'package:bydoxe_chart/renderer/base_dimension.dart';
 
 void main() => runApp(const MyApp());
 
@@ -32,7 +33,6 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   List<KLineEntity>? datas;
   bool showLoading = true;
-  bool _volHidden = false;
   MainState _mainState = MainState.MA;
   final List<SecondaryState> _secondaryStateLi = [];
   List<DepthEntity>? _bids, _asks;
@@ -128,13 +128,11 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        shrinkWrap: true,
-        children: <Widget>[
-          const SafeArea(bottom: false, child: SizedBox(height: 16)),
-          SizedBox(
-            height: 400,
-            child: KChartWidget(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            SizedBox(height: 20),
+            KChartWidget(
               datas,
               chartStyle,
               chartColors,
@@ -151,28 +149,19 @@ class _MyHomePageState extends State<MyHomePage> {
               sarSettings: _mainState == MainState.SAR ? sarSettings : null,
               avlSettings: _mainState == MainState.AVL ? avlSettings : null,
               mainState: _mainState,
-              volHidden: _volHidden,
               secondaryStateLi: _secondaryStateLi.toSet(),
               fixedLength: 2,
               timeFormat: TimeFormat.YEAR_MONTH_DAY,
               verticalTextAlignment: VerticalTextAlignment.right,
+              mBaseHeight: 400,
             ),
-          ),
-          _buildTitle(context, 'VOL'),
-          buildVolButton(),
-          _buildTitle(context, 'Main State'),
-          buildMainButtons(),
-          _buildTitle(context, 'Secondary State'),
-          buildSecondButtons(),
-          const SizedBox(height: 30),
-          if (_bids != null && _asks != null)
-            Container(
-              color: Colors.white,
-              height: 320,
-              width: double.infinity,
-              child: DepthChart(_bids!, _asks!, chartColors),
-            ),
-        ],
+            _buildTitle(context, 'Main State'),
+            buildMainButtons(),
+            _buildTitle(context, 'Secondary State'),
+            buildSecondButtons(),
+            SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
@@ -185,24 +174,6 @@ class _MyHomePageState extends State<MyHomePage> {
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           // color: Colors.white,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget buildVolButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: _buildButton(
-          context: context,
-          title: 'VOL',
-          isActive: !_volHidden,
-          onPress: () {
-            _volHidden = !_volHidden;
-            setState(() {});
-          },
         ),
       ),
     );

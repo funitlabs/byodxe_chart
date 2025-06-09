@@ -177,32 +177,24 @@ abstract class BaseChartPainter extends CustomPainter {
 
   /// init the rectangle box to draw chart
   void initRect(Size size) {
-    double volHeight = baseDimension.mVolumeHeight;
-    double secondaryHeight = baseDimension.mSecondaryHeight;
-
+    // 1. 메인 차트 영역 계산
     double mainHeight = mDisplayHeight;
-    mainHeight -= volHeight;
-    mainHeight -= (secondaryHeight * secondaryStateLi.length);
+    // VOL 영역 분리 제거
+    mainHeight -= (baseDimension.mSecondaryHeight * (secondaryStateLi.length));
 
+    // 메인 영역은 항상 최상단에 위치
     mMainRect = Rect.fromLTRB(0, mTopPadding, mWidth, mTopPadding + mainHeight);
 
-    if (volHidden != true) {
-      mVolRect = Rect.fromLTRB(0, mMainRect.bottom + mChildPadding, mWidth,
-          mMainRect.bottom + volHeight);
-    }
-
+    // 2. 보조지표 영역 계산 (VOL 포함)
     mSecondaryRectList.clear();
-    for (int i = 0; i < secondaryStateLi.length; ++i) {
-      mSecondaryRectList.add(RenderRect(
-        Rect.fromLTRB(
-            0,
-            mMainRect.bottom + volHeight + i * secondaryHeight + mChildPadding,
-            mWidth,
-            mMainRect.bottom +
-                volHeight +
-                i * secondaryHeight +
-                secondaryHeight),
-      ));
+    double currentTop = mMainRect.bottom + mChildPadding + mBottomPadding;
+
+    for (SecondaryState state in secondaryStateLi) {
+      double secondaryHeight = baseDimension.mSecondaryHeight;
+      Rect secondaryRect =
+          Rect.fromLTRB(0, currentTop, mWidth, currentTop + secondaryHeight);
+      mSecondaryRectList.add(RenderRect(secondaryRect));
+      currentTop += secondaryHeight + mChildPadding;
     }
   }
 
@@ -213,13 +205,105 @@ abstract class BaseChartPainter extends CustomPainter {
     setTranslateXFromScrollX(scrollX);
     mStartIndex = indexOfTranslateX(xToTranslateX(0));
     mStopIndex = indexOfTranslateX(xToTranslateX(mWidth));
+
+    // MACD, KDJ, RSI, WR, CCI, VOL 전체 범위 계산용 변수
+    double macdMax = double.negativeInfinity, macdMin = double.infinity;
+    double kdjMax = double.negativeInfinity, kdjMin = double.infinity;
+    double rsiMax = double.negativeInfinity, rsiMin = double.infinity;
+    double wrMax = double.negativeInfinity, wrMin = double.infinity;
+    double cciMax = double.negativeInfinity, cciMin = double.infinity;
+    double volMax = double.negativeInfinity, volMin = double.infinity;
+    int macdIdx = secondaryStateLi.toList().indexOf(SecondaryState.MACD);
+    int kdjIdx = secondaryStateLi.toList().indexOf(SecondaryState.KDJ);
+    int rsiIdx = secondaryStateLi.toList().indexOf(SecondaryState.RSI);
+    int wrIdx = secondaryStateLi.toList().indexOf(SecondaryState.WR);
+    int cciIdx = secondaryStateLi.toList().indexOf(SecondaryState.CCI);
+    int volIdx = secondaryStateLi.toList().indexOf(SecondaryState.VOL);
+
     for (int i = mStartIndex; i <= mStopIndex; i++) {
       var item = datas![i];
       getMainMaxMinValue(item, i);
-      getVolMaxMinValue(item);
       for (int idx = 0; idx < mSecondaryRectList.length; ++idx) {
-        getSecondaryMaxMinValue(idx, item);
+        if (macdIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.MACD) {
+          if (item.macd != null && item.dif != null && item.dea != null) {
+            macdMax = max(macdMax, max(item.macd!, max(item.dif!, item.dea!)));
+            macdMin = min(macdMin, min(item.macd!, min(item.dif!, item.dea!)));
+          }
+        } else if (kdjIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.KDJ) {
+          if (item.k != null && item.d != null && item.j != null) {
+            kdjMax = max(kdjMax, max(item.k!, max(item.d!, item.j!)));
+            kdjMin = min(kdjMin, min(item.k!, min(item.d!, item.j!)));
+          }
+        } else if (rsiIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.RSI) {
+          if (item.rsi != null) {
+            rsiMax = max(rsiMax, item.rsi!);
+            rsiMin = min(rsiMin, item.rsi!);
+          }
+        } else if (wrIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.WR) {
+          if (item.r != null) {
+            wrMax = max(wrMax, item.r!);
+            wrMin = min(wrMin, item.r!);
+          }
+        } else if (cciIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.CCI) {
+          if (item.cci != null) {
+            cciMax = max(cciMax, item.cci!);
+            cciMin = min(cciMin, item.cci!);
+          }
+        } else if (volIdx == idx &&
+            secondaryStateLi.elementAt(idx) == SecondaryState.VOL) {
+          volMax = max(volMax,
+              max(item.vol, max(item.MA5Volume ?? 0, item.MA10Volume ?? 0)));
+          volMin = min(volMin,
+              min(item.vol, min(item.MA5Volume ?? 0, item.MA10Volume ?? 0)));
+        } else {
+          getSecondaryMaxMinValue(idx, item);
+        }
       }
+    }
+
+    // MACD, KDJ, RSI, WR, CCI, VOL 보조지표의 범위를 absMax로만 설정
+    if (macdIdx >= 0 &&
+        macdIdx < mSecondaryRectList.length &&
+        macdMax > macdMin) {
+      double absMax = max(macdMax.abs(), macdMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[macdIdx].mMaxValue = absMax;
+      mSecondaryRectList[macdIdx].mMinValue = -absMax;
+    }
+    if (kdjIdx >= 0 && kdjIdx < mSecondaryRectList.length && kdjMax > kdjMin) {
+      double absMax = max(kdjMax.abs(), kdjMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[kdjIdx].mMaxValue = absMax;
+      mSecondaryRectList[kdjIdx].mMinValue = -absMax;
+    }
+    if (rsiIdx >= 0 && rsiIdx < mSecondaryRectList.length && rsiMax > rsiMin) {
+      double absMax = max(rsiMax.abs(), rsiMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[rsiIdx].mMaxValue = absMax;
+      mSecondaryRectList[rsiIdx].mMinValue = -absMax;
+    }
+    if (wrIdx >= 0 && wrIdx < mSecondaryRectList.length && wrMax > wrMin) {
+      double absMax = max(wrMax.abs(), wrMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[wrIdx].mMaxValue = absMax;
+      mSecondaryRectList[wrIdx].mMinValue = -absMax;
+    }
+    if (cciIdx >= 0 && cciIdx < mSecondaryRectList.length && cciMax > cciMin) {
+      double absMax = max(cciMax.abs(), cciMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[cciIdx].mMaxValue = absMax;
+      mSecondaryRectList[cciIdx].mMinValue = -absMax;
+    }
+    if (volIdx >= 0 && volIdx < mSecondaryRectList.length && volMax > volMin) {
+      double absMax = max(volMax.abs(), volMin.abs());
+      if (absMax < 1.0) absMax = 1.0;
+      mSecondaryRectList[volIdx].mMaxValue = absMax;
+      mSecondaryRectList[volIdx].mMinValue = 0;
     }
   }
 
@@ -245,6 +329,17 @@ abstract class BaseChartPainter extends CustomPainter {
       maxPrice = item.high;
       minPrice = item.low;
     }
+
+    // NaN과 Infinite 값 처리
+    if (maxPrice.isNaN || maxPrice.isInfinite) maxPrice = item.high;
+    if (minPrice.isNaN || minPrice.isInfinite) minPrice = item.low;
+
+    // 최대/최소값이 0 이하인 경우 처리
+    if (minPrice <= 0) {
+      double range = maxPrice - minPrice;
+      minPrice = range * 0.1; // 최소값을 범위의 10%로 설정
+    }
+
     mMainMaxValue = max(mMainMaxValue, maxPrice);
     mMainMinValue = min(mMainMinValue, minPrice);
 
@@ -281,61 +376,55 @@ abstract class BaseChartPainter extends CustomPainter {
     return result;
   }
 
-  // get the maximum and minimum of the Vol value
-  void getVolMaxMinValue(KLineEntity item) {
-    mVolMaxValue = max(mVolMaxValue,
-        max(item.vol, max(item.MA5Volume ?? 0, item.MA10Volume ?? 0)));
-    mVolMinValue = min(mVolMinValue,
-        min(item.vol, min(item.MA5Volume ?? 0, item.MA10Volume ?? 0)));
-  }
-
   // compute maximum and minimum of secondary value
   getSecondaryMaxMinValue(int index, KLineEntity item) {
+    if (index >= mSecondaryRectList.length) return;
+
     SecondaryState secondaryState = secondaryStateLi.elementAt(index);
     switch (secondaryState) {
+      case SecondaryState.VOL:
+        // VOL은 VolRenderer에서 처리되므로 여기서는 아무것도 하지 않음
+        break;
       // MACD
       case SecondaryState.MACD:
-        if (item.macd != null) {
-          mSecondaryRectList[index].mMaxValue = max(
-              mSecondaryRectList[index].mMaxValue,
-              max(item.macd!, max(item.dif!, item.dea!)));
-          mSecondaryRectList[index].mMinValue = min(
-              mSecondaryRectList[index].mMinValue,
-              min(item.macd!, min(item.dif!, item.dea!)));
-        }
+        // MACD는 calculateValue에서 전체 범위로 처리
         break;
       // KDJ
       case SecondaryState.KDJ:
-        if (item.d != null) {
-          mSecondaryRectList[index].mMaxValue = max(
-              mSecondaryRectList[index].mMaxValue,
-              max(item.k!, max(item.d!, item.j!)));
-          mSecondaryRectList[index].mMinValue = min(
-              mSecondaryRectList[index].mMinValue,
-              min(item.k!, min(item.d!, item.j!)));
+        if (item.k != null && item.d != null && item.j != null) {
+          double maxValue = max(item.k!, max(item.d!, item.j!));
+          double minValue = min(item.k!, min(item.d!, item.j!));
+          if (!maxValue.isNaN &&
+              !minValue.isNaN &&
+              !maxValue.isInfinite &&
+              !minValue.isInfinite) {
+            // KDJ는 0-100 범위로 설정
+            mSecondaryRectList[index].mMaxValue = 100;
+            mSecondaryRectList[index].mMinValue = 0;
+          }
         }
         break;
       // RSI
       case SecondaryState.RSI:
-        if (item.rsi != null) {
-          mSecondaryRectList[index].mMaxValue =
-              max(mSecondaryRectList[index].mMaxValue, item.rsi!);
-          mSecondaryRectList[index].mMinValue =
-              min(mSecondaryRectList[index].mMinValue, item.rsi!);
+        if (item.rsi != null && !item.rsi!.isNaN && !item.rsi!.isInfinite) {
+          // RSI는 0-100 범위로 설정
+          mSecondaryRectList[index].mMaxValue = 100;
+          mSecondaryRectList[index].mMinValue = 0;
         }
         break;
       // WR
       case SecondaryState.WR:
+        // WR은 -100-0 범위로 설정
         mSecondaryRectList[index].mMaxValue = 0;
         mSecondaryRectList[index].mMinValue = -100;
         break;
       // CCI
       case SecondaryState.CCI:
-        if (item.cci != null) {
-          mSecondaryRectList[index].mMaxValue =
-              max(mSecondaryRectList[index].mMaxValue, item.cci!);
-          mSecondaryRectList[index].mMinValue =
-              min(mSecondaryRectList[index].mMinValue, item.cci!);
+        if (item.cci != null && !item.cci!.isNaN && !item.cci!.isInfinite) {
+          // CCI는 -100-100 범위로 설정
+          double absValue = item.cci!.abs();
+          mSecondaryRectList[index].mMaxValue = max(100, absValue).toDouble();
+          mSecondaryRectList[index].mMinValue = -max(100, absValue).toDouble();
         }
         break;
     }
@@ -424,7 +513,8 @@ abstract class BaseChartPainter extends CustomPainter {
 /// Render Rectangle
 class RenderRect {
   Rect mRect;
-  double mMaxValue = double.minPositive, mMinValue = double.maxFinite;
+  double mMaxValue = double.negativeInfinity;
+  double mMinValue = double.infinity;
 
   RenderRect(this.mRect);
 }

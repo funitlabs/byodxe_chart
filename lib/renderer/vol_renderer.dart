@@ -45,8 +45,11 @@ class VolRenderer extends BaseChartRenderer<VolumeEntity> {
     }
   }
 
-  double getVolY(double value) =>
-      (maxValue - value) * (chartRect.height / maxValue) + chartRect.top;
+  double getVolY(double value) {
+    if (value == 0) return chartRect.bottom;
+    return (maxValue - value) * (chartRect.height / (maxValue - minValue)) +
+        chartRect.top;
+  }
 
   @override
   void drawText(Canvas canvas, VolumeEntity data, double x) {

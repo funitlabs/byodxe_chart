@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/number_util.dart';
 
 export '../chart_style.dart';
 
@@ -18,6 +19,7 @@ abstract class BaseChartRenderer<T> {
     ..filterQuality = FilterQuality.high
     ..strokeWidth = 0.5
     ..color = Color(0xff4c5c74);
+  bool skipPadding;
 
   BaseChartRenderer({
     required this.chartRect,
@@ -26,23 +28,53 @@ abstract class BaseChartRenderer<T> {
     required this.topPadding,
     required this.fixedLength,
     required Color gridColor,
+    this.skipPadding = false,
   }) {
     if (maxValue == minValue) {
       maxValue *= 1.5;
       minValue /= 2;
     }
+
+    if (maxValue.isNaN ||
+        minValue.isNaN ||
+        maxValue.isInfinite ||
+        minValue.isInfinite) {
+      maxValue = 100;
+      minValue = 0;
+    }
+
+    if (!skipPadding) {
+      double range = maxValue - minValue;
+      double padding = range * 0.1;
+      maxValue += padding;
+      minValue -= padding;
+
+      if (minValue < 0) {
+        double totalRange = maxValue - minValue;
+        maxValue = totalRange * 0.1;
+        minValue = -totalRange * 0.9;
+      }
+    }
+
     scaleY = chartRect.height / (maxValue - minValue);
     gridPaint.color = gridColor;
     // print("maxValue=====" + maxValue.toString() + "====minValue===" + minValue.toString() + "==scaleY==" + scaleY.toString());
   }
 
-  double getY(double y) => (maxValue - y) * scaleY + chartRect.top;
+  double getY(double y) {
+    if (y.isNaN || y.isInfinite) return chartRect.bottom;
+    if (maxValue == minValue) return chartRect.bottom;
+
+    // 각 영역 내에서만 표시되도록 제한
+    double yValue = (maxValue - y) * scaleY + chartRect.top;
+    return yValue.clamp(chartRect.top + 10, chartRect.bottom - 10);
+  }
 
   String format(double? n) {
     if (n == null || n.isNaN) {
       return "0.00";
     } else {
-      return n.toStringAsFixed(fixedLength);
+      return NumberUtil.format(n, format: NumberFormat.character);
     }
   }
 
@@ -57,15 +89,17 @@ abstract class BaseChartRenderer<T> {
 
   void drawLine(double? lastPrice, double? curPrice, Canvas canvas,
       double lastX, double curX, Color color) {
-    if (lastPrice == null || curPrice == null) {
+    if (lastPrice == null ||
+        curPrice == null ||
+        lastPrice.isNaN ||
+        curPrice.isNaN ||
+        lastPrice.isInfinite ||
+        curPrice.isInfinite) {
       return;
     }
     //("lasePrice==" + lastPrice.toString() + "==curPrice==" + curPrice.toString());
-    double lastY = getY(lastPrice);
-    double curY = getY(curPrice);
-    //print("lastX-----==" + lastX.toString() + "==lastY==" + lastY.toString() + "==curX==" + curX.toString() + "==curY==" + curY.toString());
-    canvas.drawLine(
-        Offset(lastX, lastY), Offset(curX, curY), chartPaint..color = color);
+    canvas.drawLine(Offset(lastX, getY(lastPrice)),
+        Offset(curX, getY(curPrice)), chartPaint..color = color);
   }
 
   TextStyle getTextStyle(Color color) {

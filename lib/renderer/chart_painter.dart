@@ -9,8 +9,8 @@ import 'base_chart_renderer.dart';
 import 'base_dimension.dart';
 import 'main_renderer.dart';
 import 'secondary_renderer.dart';
-import 'vol_renderer.dart';
 import '../chart_indicator.dart';
+import '../k_chart_widget.dart' show MainState, SecondaryState;
 
 class TrendLine {
   final Offset p1;
@@ -34,7 +34,6 @@ class ChartPainter extends BaseChartPainter {
   final double selectY; //For TrendLine
   static get maxScrollX => BaseChartPainter.maxScrollX;
   BaseChartRenderer? mMainRenderer;
-  BaseChartRenderer? mVolRenderer;
   Set<BaseChartRenderer> mSecondaryRendererList = {};
   StreamSink<InfoWindowEntity?> sink;
   Color? upColor, dnColor;
@@ -55,51 +54,56 @@ class ChartPainter extends BaseChartPainter {
   final BOLLIndicatorConfig? bollSettings;
   final SARIndicatorConfig? sarSettings;
   final AVLIndicatorConfig? avlSettings;
+  final double xFrontPadding;
+  final bool isLongPass;
+  final double selectX;
+  final bool isOnTap;
+  final bool isTapShowInfoDialog;
+  final MainState mainState;
+  final Set<SecondaryState> secondaryStateLi;
+  final bool isLine;
 
   ChartPainter(
     this.chartStyle,
     this.chartColors, {
-    required this.lines, //For TrendLine
-    required this.isTrendLine, //For TrendLine
-    required this.selectY, //For TrendLine
+    required this.lines,
+    required this.isTrendLine,
+    required this.selectY,
     required this.sink,
-    required datas,
-    required scaleX,
-    required scrollX,
-    required isLongPass,
-    required selectX,
-    required xFrontPadding,
     required this.baseDimension,
+    required this.xFrontPadding,
+    required this.isLongPass,
+    required this.selectX,
+    required this.isOnTap,
+    required this.isTapShowInfoDialog,
+    required this.mainState,
+    required this.secondaryStateLi,
+    required this.isLine,
+    required this.hideGrid,
+    required this.showNowPrice,
+    required this.fixedLength,
     required this.maSettings,
     required this.emaSettings,
     this.bollSettings,
     this.sarSettings,
     this.avlSettings,
-    isOnTap,
-    isTapShowInfoDialog,
     required this.verticalTextAlignment,
-    mainState,
-    volHidden,
-    secondaryStateLi,
-    bool isLine = false,
-    this.hideGrid = false,
-    this.showNowPrice = true,
-    this.fixedLength = 2,
-    this.maDayList = const [5, 10, 20],
-  }) : super(chartStyle,
-            datas: datas,
-            scaleX: scaleX,
-            scrollX: scrollX,
-            isLongPress: isLongPass,
-            baseDimension: baseDimension,
-            isOnTap: isOnTap,
-            isTapShowInfoDialog: isTapShowInfoDialog,
-            selectX: selectX,
-            mainState: mainState,
-            volHidden: volHidden,
-            secondaryStateLi: secondaryStateLi,
-            xFrontPadding: xFrontPadding,
-            isLine: isLine) {
+    required this.maDayList,
+    List<KLineEntity>? datas,
+  }) : super(
+          chartStyle,
+          datas: datas,
+          scaleX: 1.0,
+          scrollX: 0.0,
+          isLongPress: isLongPass,
+          selectX: selectX,
+          isOnTap: isOnTap,
+          mainState: mainState,
+          secondaryStateLi: secondaryStateLi,
+          isLine: isLine,
+          xFrontPadding: xFrontPadding,
+          baseDimension: baseDimension,
+        ) {
     selectPointPaint = Paint()
       ..isAntiAlias = true
       ..strokeWidth = 0.5
@@ -118,13 +122,14 @@ class ChartPainter extends BaseChartPainter {
   void initChartRenderer() {
     if (datas == null || datas!.isEmpty) {
       mMainRenderer = null;
-      mVolRenderer = null;
       mSecondaryRendererList = {};
       return;
     }
     var t = datas![0];
     fixedLength =
         NumberUtil.getMaxDecimalLength(t.open, t.close, t.high, t.low);
+
+    // 1. 메인 차트 렌더러 생성
     mMainRenderer = MainRenderer(
       mMainRect,
       mMainMaxValue,
@@ -143,24 +148,25 @@ class ChartPainter extends BaseChartPainter {
       sarSettings: sarSettings,
       avlSettings: avlSettings,
     );
-    if (mVolRect != null) {
-      mVolRenderer = VolRenderer(mVolRect!, mVolMaxValue, mVolMinValue,
-          mChildPadding, fixedLength, this.chartStyle, this.chartColors);
-    } else {
-      mVolRenderer = null;
-    }
+
+    // 2. 보조지표 렌더러 생성 (VOL 포함)
     mSecondaryRendererList.clear();
-    for (int i = 0; i < mSecondaryRectList.length; ++i) {
-      mSecondaryRendererList.add(SecondaryRenderer(
-        mSecondaryRectList[i].mRect,
-        mSecondaryRectList[i].mMaxValue,
-        mSecondaryRectList[i].mMinValue,
-        mChildPadding,
-        secondaryStateLi.elementAt(i),
-        fixedLength,
-        chartStyle,
-        chartColors,
-      ));
+    int secondaryIndex = 0;
+
+    for (SecondaryState state in secondaryStateLi) {
+      if (secondaryIndex < mSecondaryRectList.length) {
+        mSecondaryRendererList.add(SecondaryRenderer(
+          mSecondaryRectList[secondaryIndex].mRect,
+          mSecondaryRectList[secondaryIndex].mMaxValue,
+          mSecondaryRectList[secondaryIndex].mMinValue,
+          mChildPadding,
+          state,
+          fixedLength,
+          chartStyle,
+          chartColors,
+        ));
+        secondaryIndex++;
+      }
     }
   }
 
@@ -170,12 +176,6 @@ class ChartPainter extends BaseChartPainter {
     Rect mainRect =
         Rect.fromLTRB(0, 0, mMainRect.width, mMainRect.height + mTopPadding);
     canvas.drawRect(mainRect, mBgPaint);
-
-    if (mVolRect != null) {
-      Rect volRect = Rect.fromLTRB(
-          0, mVolRect!.top - mChildPadding, mVolRect!.width, mVolRect!.bottom);
-      canvas.drawRect(volRect, mBgPaint);
-    }
 
     for (int i = 0; i < mSecondaryRectList.length; ++i) {
       Rect? mSecondaryRect = mSecondaryRectList[i].mRect;
@@ -192,7 +192,6 @@ class ChartPainter extends BaseChartPainter {
   void drawGrid(canvas) {
     if (!hideGrid) {
       mMainRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
-      mVolRenderer?.drawGrid(canvas, mGridRows, mGridColumns);
       mSecondaryRendererList.forEach((element) {
         element.drawGrid(canvas, mGridRows, mGridColumns);
       });
@@ -213,7 +212,6 @@ class ChartPainter extends BaseChartPainter {
       double lastX = i == 0 ? curX : getX(i - 1);
 
       mMainRenderer?.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
-      mVolRenderer?.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
       mSecondaryRendererList.forEach((element) {
         element.drawChart(lastPoint, curPoint, lastX, curX, size, canvas);
       });
@@ -233,11 +231,10 @@ class ChartPainter extends BaseChartPainter {
     var textStyle = getTextStyle(this.chartColors.defaultTextColor);
     if (!hideGrid) {
       mMainRenderer?.drawVerticalText(canvas, textStyle, mGridRows);
+      mSecondaryRendererList.forEach((element) {
+        element.drawVerticalText(canvas, textStyle, mGridRows);
+      });
     }
-    mVolRenderer?.drawVerticalText(canvas, textStyle, mGridRows);
-    mSecondaryRendererList.forEach((element) {
-      element.drawVerticalText(canvas, textStyle, mGridRows);
-    });
   }
 
   @override
@@ -257,25 +254,17 @@ class ChartPainter extends BaseChartPainter {
 
         if (datas?[index] == null) continue;
         TextPainter tp = getTextPainter(getDate(datas![index].time), null);
-        y = size.height - (mBottomPadding - tp.height) / 2 - tp.height;
+
+        // 날짜를 메인 영역과 보조지표 영역 사이에 표시
+        y = mMainRect.bottom + (mChildPadding - tp.height) / 2;
         x = columnSpace * i - tp.width / 2;
+
         // Prevent date text out of canvas
         if (x < 0) x = 0;
         if (x > size.width - tp.width) x = size.width - tp.width;
         tp.paint(canvas, Offset(x, y));
       }
     }
-
-//    double translateX = xToTranslateX(0);
-//    if (translateX >= startX && translateX <= stopX) {
-//      TextPainter tp = getTextPainter(getDate(datas[mStartIndex].id));
-//      tp.paint(canvas, Offset(0, y));
-//    }
-//    translateX = xToTranslateX(size.width);
-//    if (translateX >= startX && translateX <= stopX) {
-//      TextPainter tp = getTextPainter(getDate(datas[mStopIndex].id));
-//      tp.paint(canvas, Offset(size.width - tp.width, y));
-//    }
   }
 
   /// draw the cross line. when user focus
@@ -358,7 +347,6 @@ class ChartPainter extends BaseChartPainter {
     }
     //Release to display the last data
     mMainRenderer?.drawText(canvas, data, x);
-    mVolRenderer?.drawText(canvas, data, x);
     mSecondaryRendererList.forEach((element) {
       element.drawText(canvas, data, x);
     });
